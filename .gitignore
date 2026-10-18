@@ -1,0 +1,21 @@
+# generated data (rebuild with: python -m smallcap.cli build-demo / build-real).
+# The built database, its coverage report and the saved backtests are committed so the
+# deployed app serves them without fetching anything; raw downloads stay local.
+data/*
+!data/smallcap.duckdb
+!data/real_report.json
+!data/cache/
+data/cache/*
+!data/cache/backtests/
+# research notes are not part of the public app
+research/
+# python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+# front end
+frontend/node_modules/
+frontend/dist/
+# editor
+.idea/
