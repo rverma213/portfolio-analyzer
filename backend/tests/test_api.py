@@ -62,3 +62,32 @@ def test_backtest_is_cached(client):
     b = client.post("/api/backtest", json=body).json()
     assert a["key"] == b["key"] and a["stats"] == b["stats"]
     assert client.get("/api/pipeline").json()["stages"][-1]["count"] is not None
+
+
+def test_engine_loads_once_under_concurrent_requests(monkeypatch):
+    """Simultaneous first requests must share one dataset load (512 MB instances)."""
+    import threading
+    import time
+    built = []
+
+    class Slow:
+        def __init__(self):
+            time.sleep(0.2)
+            built.append(self)
+
+    saved = api._engine
+    monkeypatch.setattr(api, "Engine", Slow)
+    api._engine = None
+    try:
+        ts = [threading.Thread(target=api.engine) for _ in range(8)]
+        [t.start() for t in ts]
+        [t.join() for t in ts]
+        assert len(built) == 1
+    finally:
+        api._engine = saved
+
+
+def test_head_request_on_site_root(client):
+    if not (api.ROOT / "frontend" / "dist").exists():
+        return  # the site route exists only once the front end is built
+    assert client.head("/").status_code == 200

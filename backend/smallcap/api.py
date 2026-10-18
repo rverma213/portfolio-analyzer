@@ -16,6 +16,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import numpy as np
@@ -33,7 +35,17 @@ from .engine import Engine
 from .portfolio import benchmark
 from .screen import FILTERS
 
-app = FastAPI(title="Portfolio Analyzer – Global Smaller Companies")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Load the dataset once, before the server accepts requests. Loading lazily let
+    # health checks that arrived during the (slow) first load each start their own
+    # copy, which ran a 512 MB instance out of memory.
+    engine()
+    yield
+
+
+app = FastAPI(title="Portfolio Analyzer – Global Smaller Companies", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
                    allow_methods=["*"], allow_headers=["*"])
 
@@ -41,10 +53,18 @@ _engine: Engine | None = None
 BACKTEST_CACHE = DATA_DIR / "cache" / "backtests"
 
 
+_engine_lock = threading.Lock()
+# One backtest at a time: each holds a few hundred MB while it runs. Others wait,
+# then usually find the result already cached.
+_backtest_lock = threading.Lock()
+
+
 def engine() -> Engine:
     global _engine
     if _engine is None:
-        _engine = Engine()
+        with _engine_lock:
+            if _engine is None:
+                _engine = Engine()
     return _engine
 
 
@@ -242,12 +262,15 @@ def backtest(req: BacktestRequest):
     path = BACKTEST_CACHE / f"{key}.json"
     if path.exists() and not req.refresh:
         return json.loads(path.read_text())
-    out = run_backtest(engine(), req.screen, req.portfolio, req.backtest)
-    out["key"] = key
-    out["params"] = {"screen": req.screen.model_dump(), "portfolio": req.portfolio.model_dump(),
-                     "backtest": req.backtest.model_dump()}
-    BACKTEST_CACHE.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(out))
+    with _backtest_lock:
+        if path.exists() and not req.refresh:  # computed by a request we waited behind
+            return json.loads(path.read_text())
+        out = run_backtest(engine(), req.screen, req.portfolio, req.backtest)
+        out["key"] = key
+        out["params"] = {"screen": req.screen.model_dump(), "portfolio": req.portfolio.model_dump(),
+                         "backtest": req.backtest.model_dump()}
+        BACKTEST_CACHE.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(out))
     return out
 
 
@@ -274,7 +297,7 @@ if _dist.exists():
 
     app.mount("/assets", StaticFiles(directory=Path(_dist / "assets")), name="assets")
 
-    @app.get("/{path:path}", include_in_schema=False)
+    @app.api_route("/{path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     def spa(path: str):
         if path.startswith("api/"):
             raise HTTPException(404)
