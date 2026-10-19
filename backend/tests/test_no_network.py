@@ -16,7 +16,7 @@ from smallcap.engine import Engine
 
 FETCHERS = ("requests", "yfinance", "urllib", "httpx", "smallcap.data.real", "smallcap.data.ishares", ".data.real",
             ".data.ishares")
-SERVED = ["api.py", "engine.py", "screen.py", "metrics.py", "portfolio.py", "backtest.py", "notes.py", "config.py",
+SERVED = ["api.py", "engine.py", "screen.py", "metrics.py", "portfolio.py", "backtest.py", "stock.py", "notes.py", "config.py",
           "data/store.py"]
 
 
@@ -62,6 +62,8 @@ def test_every_endpoint_works_offline(offline_client):
     s = c.post("/api/screen", json={"as_of": as_of}).json()
     cid = (s["passed"] or s["excluded"])[0]["company_id"]
     assert c.get(f"/api/company/{cid}").status_code == 200
+    assert c.get("/api/stocks").status_code == 200
+    assert c.get(f"/api/stock/{cid}").status_code == 200
     assert c.post("/api/portfolio", json={"as_of": as_of}).status_code == 200
     body = {"backtest": {"start": "2018-03-31", "end": "2019-12-31"}}
     assert c.post("/api/backtest", json=body).status_code == 200

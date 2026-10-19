@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { ReactElement } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
@@ -11,6 +12,7 @@ import { Badge, ErrorBox, Loading, PassMark, ScoreBar } from './ui'
 
 export function CompanyDrawer() {
   const { company, openCompany, asOf, meta } = useApp()
+  const navigate = useNavigate()
   const { data, error, loading } = useAsync(
     () => (company ? api.company(company, asOf) : Promise.resolve(null)), [company, asOf])
 
@@ -50,6 +52,9 @@ export function CompanyDrawer() {
                 {s?.in_benchmark ? <Badge>Benchmark</Badge> : <Badge tone="warn">Off-benchmark</Badge>}
                 {c.delisted_date && <Badge tone="bad">Delisted {c.delisted_date} ({c.delist_reason})</Badge>}
                 <span className="muted small">Mkt cap {usd(s?.mcap_usd)} · ADV {usd(s?.adv_usd)}</span>
+                <button className="btn" onClick={() => { const id = company; openCompany(null); navigate(`/stock/${encodeURIComponent(id)}`) }}>
+                  Open full profile
+                </button>
               </div>
             </header>
 

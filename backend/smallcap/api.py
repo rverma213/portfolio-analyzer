@@ -5,6 +5,8 @@
     GET  /api/universe             constituents and country/sector mix
     POST /api/screen               hard-filter funnel, ranked list, exclusions
     GET  /api/company/{id}         5-year history, scores, prices
+    GET  /api/stocks               every company, for the single-stock picker
+    GET  /api/stock/{id}           full single-stock profile vs the benchmark
     POST /api/portfolio            holdings, limit checks, exposures
     POST /api/backtest             screen quintiles and portfolio backtest
 
@@ -34,6 +36,7 @@ from .data.store import describe
 from .engine import Engine
 from .portfolio import benchmark
 from .screen import FILTERS
+from . import stock as stock_mod
 
 
 @asynccontextmanager
@@ -230,6 +233,53 @@ def company(company_id: str, as_of: str | None = None):
         if len(row) else None,
         "history": records(hist),
         "prices": records(px, ["date", "price", "mcap_usd", "index", "bench_index", "in_benchmark"]),
+    }
+
+
+@app.get("/api/stocks")
+def stocks():
+    e = engine()
+    if getattr(e, "_stock_options", None) is None:  # same list for every request: build it once
+        last = e.ds.monthly.sort_values("date").groupby("company_id").tail(1).set_index("company_id")
+        c = e.ds.companies.assign(mcap_usd=e.ds.companies["company_id"].map(last["mcap_usd"]))
+        e._stock_options = records(c.sort_values("name"), ["company_id", "ticker", "name", "country", "sector",
+                                                           "mcap_usd", "bench_weight_file"])
+    return e._stock_options
+
+
+@app.get("/api/stock/{company_id}")
+def stock(company_id: str, as_of: str | None = None):
+    e = engine()
+    comp = e.ds.companies[e.ds.companies["company_id"] == company_id]
+    if comp.empty:
+        raise HTTPException(404, f"unknown company {company_id}")
+    month = e.month_end(as_of)
+    px = e.ds.monthly[(e.ds.monthly["company_id"] == company_id) & (e.ds.monthly["date"] <= month)]
+    if px.empty:
+        raise HTTPException(404, f"no prices for {company_id} on or before {month.date()}")
+    m = stock_mod.monthly_series(px, e.benchmark_returns())
+    res = e.screen(month)
+    row = res.frame[res.frame["company_id"] == company_id]
+    last12 = m.iloc[-12:]
+    latest = m.iloc[-1]
+    return {
+        "as_of": month.date().isoformat(),
+        "company": records(comp)[0],
+        "market": {k: clean(v) for k, v in {
+            "date": latest["date"], "price": latest["price"], "mcap_usd": latest["mcap_usd"],
+            "adv_usd": latest["adv_usd"], "adv_12m": last12["adv_usd"].mean(),
+            "high_12m": last12["price"].max(), "low_12m": last12["price"].min(),
+            "in_benchmark": latest["in_benchmark"], "first_month": m["date"].iloc[0], "months": len(m),
+        }.items()},
+        "screen": records(row, BASE_COLS + METRIC_COLS + SCORE_COLS + ["passed", "failed", "earnings_yield",
+                                                                       "fcf_yield", "ev_usd"])[0]
+        if len(row) else None,
+        "returns": [{k: clean(v) for k, v in r.items()} for r in stock_mod.horizon_returns(m)],
+        "risk": [{k: clean(v) for k, v in r.items()} for r in stock_mod.risk_stats(m)],
+        "calendar": [{k: clean(v) for k, v in r.items()} for r in stock_mod.calendar_years(m)],
+        "series": records(m.drop(columns=["company_id"])),
+        "fundamentals": records(stock_mod.fundamentals(e.ds.statements, e.stmt, company_id, month)
+                                .drop(columns=["company_id"])),
     }
 
 

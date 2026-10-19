@@ -133,3 +133,29 @@ export type BacktestResponse = {
   rebalances: { date: string; holdings: number; turnover: number; cost: number; passed: number; universe: number; pass_ret: number; fail_ret: number }[]
   holdings: { date: string; weights: Record<string, number> }[]
 }
+
+export type StockOption = { company_id: string; ticker: string; name: string; country: string; sector: string; mcap_usd: number | null; bench_weight_file: number | null }
+
+export type HorizonReturn = { key: string; label: string; annualised: boolean; stock: number | null; benchmark: number | null; excess: number | null }
+
+export type RiskStats = {
+  key: string; months: number; available: boolean; start?: string; end?: string
+  vol?: number; bench_vol?: number; correlation?: number; beta?: number | null; tracking_error?: number
+  max_drawdown?: number; bench_max_drawdown?: number; best_month?: number; worst_month?: number
+  positive_months?: number; beat_months?: number
+}
+
+export type StockResponse = {
+  as_of: string
+  company: Row
+  market: {
+    date: string; price: number; mcap_usd: number | null; adv_usd: number | null; adv_12m: number | null
+    high_12m: number; low_12m: number; in_benchmark: boolean; first_month: string; months: number
+  }
+  screen: Row | null
+  returns: HorizonReturn[]
+  risk: RiskStats[]
+  calendar: { year: number; months: number; partial: boolean; stock: number; benchmark: number; excess: number }[]
+  series: Row[]
+  fundamentals: Row[]
+}

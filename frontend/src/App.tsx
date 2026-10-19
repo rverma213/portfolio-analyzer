@@ -4,15 +4,17 @@ import { Backtest } from './pages/Backtest'
 import { Overview } from './pages/Overview'
 import { Portfolio } from './pages/Portfolio'
 import { Screener } from './pages/Screener'
+import { Stock } from './pages/Stock'
 import { Universe } from './pages/Universe'
 import { useApp } from './state'
 
 const STEPS = [
-  { to: '/', label: 'Overview', n: '' },
+  { to: '/', label: 'Overview', n: '◎' },
   { to: '/universe', label: 'Universe', n: '1' },
   { to: '/screener', label: 'Screener', n: '2' },
   { to: '/portfolio', label: 'Portfolio', n: '3' },
   { to: '/backtest', label: 'Backtest', n: '4' },
+  { to: '/stock', label: 'Single stock', n: '◇' },
 ]
 
 export default function App() {
@@ -32,7 +34,7 @@ export default function App() {
           {STEPS.map((s) => (
             <li key={s.to}>
               <NavLink to={s.to} end={s.to === '/'} className={({ isActive }) => `step ${isActive ? 'active' : ''}`}>
-                <span className="step-n">{s.n || '◎'}</span>{s.label}
+                <span className="step-n">{s.n}</span>{s.label}
               </NavLink>
             </li>
           ))}
@@ -74,6 +76,8 @@ export default function App() {
           <Route path="/screener" element={<Screener />} />
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/backtest" element={<Backtest />} />
+          <Route path="/stock" element={<Stock />} />
+          <Route path="/stock/:id" element={<Stock />} />
         </Routes>
       </main>
       <CompanyDrawer />

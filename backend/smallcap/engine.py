@@ -19,6 +19,7 @@ class Engine:
         self.mcap = self.ds.monthly.pivot(index="date", columns="company_id", values="mcap_usd")
         self.bench = self.ds.monthly.pivot(index="date", columns="company_id", values="in_benchmark")
         self._snap = lru_cache(maxsize=256)(self._snapshot)
+        self._bench_returns: pd.Series | None = None
 
     # -------------------------------------------------------------- dates
     def month_end(self, as_of: str | pd.Timestamp | None) -> pd.Timestamp:
@@ -45,6 +46,11 @@ class Engine:
 
     def benchmark_returns(self) -> pd.Series:
         """Cap-weighted monthly return of benchmark members as of the prior month end."""
+        if self._bench_returns is None:
+            self._bench_returns = self._benchmark_returns()
+        return self._bench_returns
+
+    def _benchmark_returns(self) -> pd.Series:
         w = (self.mcap.where(self.bench.astype("boolean").fillna(False).astype(bool))).shift(1)
         r = self.returns.reindex_like(w)
         num = (w * r.fillna(0)).sum(axis=1)

@@ -1,6 +1,6 @@
 import type {
   BacktestParams, BacktestResponse, CompanyResponse, Meta, Pipeline, PortfolioParams,
-  PortfolioResponse, ScreenParams, ScreenResponse, Universe,
+  PortfolioResponse, ScreenParams, ScreenResponse, StockOption, StockResponse, Universe,
 } from './types'
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -30,6 +30,9 @@ export const api = {
     call<ScreenResponse>('/api/screen', post({ as_of: asOf, screen })),
   company: (id: string, asOf?: string | null) =>
     call<CompanyResponse>(`/api/company/${encodeURIComponent(id)}${q(asOf)}`),
+  stocks: () => call<StockOption[]>('/api/stocks'),
+  stock: (id: string, asOf?: string | null) =>
+    call<StockResponse>(`/api/stock/${encodeURIComponent(id)}${q(asOf)}`),
   portfolio: (asOf: string | null, screen: ScreenParams, portfolio: PortfolioParams) =>
     call<PortfolioResponse>('/api/portfolio', post({ as_of: asOf, screen, portfolio })),
   backtest: (screen: ScreenParams, portfolio: PortfolioParams, backtest: BacktestParams, refresh = false) =>
